@@ -446,7 +446,17 @@ def process_files():
 
         for idx, file in enumerate(valid_files):
             filename = secure_filename(file.filename)
-            file_path = os.path.join(input_dir, filename)
+            
+            # Check if file includes folder structure
+            if hasattr(file, 'content_type') and '/' in file.filename:
+                # Preserve folder structure
+                folder_parts = file.filename.split('/')
+                folder_path = os.path.join(input_dir, *folder_parts[:-1])
+                os.makedirs(folder_path, exist_ok=True)
+                file_path = os.path.join(input_dir, *folder_parts)
+            else:
+                file_path = os.path.join(input_dir, filename)
+            
             file.save(file_path)
             file_size = os.path.getsize(file_path) / (1024 * 1024)  # Size in MB
             logger.info(f"Saved file {idx+1}/{len(valid_files)}: {filename} ({file_size:.2f} MB)")
