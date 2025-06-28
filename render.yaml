@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: ocr-website
+    env: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: FLASK_ENV
+        value: production
+    autoDeploy: true

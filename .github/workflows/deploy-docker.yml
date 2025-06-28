@@ -1,0 +1,40 @@
+name: Deploy Docker Application
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-to-railway:
+    runs-on: ubuntu-latest
+    if: ${{ vars.DEPLOY_TO_RAILWAY == 'true' }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: railway/deploy-action@v1
+        with:
+          service: ocr-website
+          token: ${{ secrets.RAILWAY_TOKEN }}
+
+  deploy-to-fly:
+    runs-on: ubuntu-latest
+    if: ${{ vars.DEPLOY_TO_FLY == 'true' }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-to-gcr:
+    runs-on: ubuntu-latest
+    if: ${{ vars.DEPLOY_TO_GCR == 'true' }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: google-github-actions/setup-gcloud@v0
+        with:
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+      - run: |
+          gcloud builds submit --tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/ocr-website
+          gcloud run deploy ocr-website --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/ocr-website --platform managed --region us-central1
