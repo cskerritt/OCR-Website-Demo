@@ -90,7 +90,83 @@ os.makedirs(app.config['CACHE_FOLDER'], exist_ok=True)
 os.makedirs('instance', exist_ok=True)
 
 # User model
-class User(db.Model, UserMixin):\n    id = db.Column(db.Integer, primary_key=True)\n    username = db.Column(db.String(20), unique=True, nullable=False)\n    email = db.Column(db.String(120), unique=True, nullable=False)\n    password_hash = db.Column(db.String(60), nullable=False)\n    is_active = db.Column(db.Boolean, default=True)\n    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())\n\n    def __repr__(self):\n        return f\"User('{self.username}', '{self.email}')\"\n\n@login_manager.user_loader\ndef load_user(user_id):\n    return User.query.get(int(user_id))\n\n# Forms\nclass RegistrationForm(FlaskForm):\n    username = StringField('Username', validators=[DataRequired(), Length(min=2, max=20)])\n    email = StringField('Email', validators=[DataRequired(), Email()])\n    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])\n    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])\n    submit = SubmitField('Sign Up')\n\n    def validate_username(self, username):\n        user = User.query.filter_by(username=username.data).first()\n        if user:\n            raise ValidationError('That username is already taken. Please choose a different one.')\n\n    def validate_email(self, email):\n        user = User.query.filter_by(email=email.data).first()\n        if user:\n            raise ValidationError('That email is already taken. Please choose a different one.')\n\nclass LoginForm(FlaskForm):\n    email = StringField('Email', validators=[DataRequired(), Email()])\n    password = PasswordField('Password', validators=[DataRequired()])\n    remember = BooleanField('Remember Me')\n    submit = SubmitField('Sign In')\n\nclass RequestResetForm(FlaskForm):\n    email = StringField('Email', validators=[DataRequired(), Email()])\n    submit = SubmitField('Request Password Reset')\n\n    def validate_email(self, email):\n        user = User.query.filter_by(email=email.data).first()\n        if user is None:\n            raise ValidationError('There is no account with that email. You must register first.')\n\nclass ResetPasswordForm(FlaskForm):\n    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])\n    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])\n    submit = SubmitField('Reset Password')\n\n# Helper functions\ndef get_reset_token(user, expires_sec=1800):\n    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])\n    return s.dumps({'user_id': user.id})\n\ndef verify_reset_token(token, expires_sec=1800):\n    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])\n    try:\n        user_id = s.loads(token, max_age=expires_sec)['user_id']\n    except:\n        return None\n    return User.query.get(user_id)\n\ndef send_reset_email(user):\n    token = get_reset_token(user)\n    msg = Message('Password Reset Request',\n                  sender=app.config['MAIL_DEFAULT_SENDER'],\n                  recipients=[user.email])\n    msg.body = f'''To reset your password, visit the following link:\n{url_for('reset_token', token=token, _external=True)}\n\nIf you did not make this request then simply ignore this email and no changes will be made.\n'''\n    mail.send(msg)
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(20), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(60), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=db.func.current_timestamp())
+
+    def __repr__(self):
+        return f"User('{self.username}', '{self.email}')"
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+# Forms
+class RegistrationForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired(), Length(min=2, max=20)])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Sign Up')
+
+    def validate_username(self, username):
+        user = User.query.filter_by(username=username.data).first()
+        if user:
+            raise ValidationError('That username is already taken. Please choose a different one.')
+
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data).first()
+        if user:
+            raise ValidationError('That email is already taken. Please choose a different one.')
+
+class LoginForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    remember = BooleanField('Remember Me')
+    submit = SubmitField('Sign In')
+
+class RequestResetForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    submit = SubmitField('Request Password Reset')
+
+    def validate_email(self, email):
+        user = User.query.filter_by(email=email.data).first()
+        if user is None:
+            raise ValidationError('There is no account with that email. You must register first.')
+
+class ResetPasswordForm(FlaskForm):
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Reset Password')
+
+# Helper functions
+def get_reset_token(user, expires_sec=1800):
+    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    return s.dumps({'user_id': user.id})
+
+def verify_reset_token(token, expires_sec=1800):
+    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    try:
+        user_id = s.loads(token, max_age=expires_sec)['user_id']
+    except:
+        return None
+    return User.query.get(user_id)
+
+def send_reset_email(user):
+    token = get_reset_token(user)
+    msg = Message('Password Reset Request',
+                  sender=app.config['MAIL_DEFAULT_SENDER'],
+                  recipients=[user.email])
+    msg.body = f'''To reset your password, visit the following link:
+{url_for('reset_token', token=token, _external=True)}
+
+If you did not make this request then simply ignore this email and no changes will be made.
+'''
+    mail.send(msg)
 
 # Global variable to track processing status
 processing_status = {
