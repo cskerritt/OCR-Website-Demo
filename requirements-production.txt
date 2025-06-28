@@ -1,0 +1,52 @@
+# Core requirements
+Flask==2.3.2
+Flask-SQLAlchemy==3.0.5
+Flask-Login==0.6.2
+Flask-Bcrypt==1.0.1
+Flask-WTF==1.1.1
+Flask-Mail==0.9.1
+WTForms==3.0.1
+email-validator==2.0.0
+itsdangerous==2.1.2
+
+# OCR processing
+ocrmypdf==14.3.0
+PyPDF2==3.0.1
+
+# Production server
+gunicorn==21.2.0
+gevent==23.7.0
+
+# Security & Performance
+flask-talisman==1.1.0
+flask-limiter==3.3.1
+flask-compress==1.13
+cryptography==41.0.3
+
+# Database
+psycopg2-binary==2.9.7
+redis==4.6.0
+
+# Monitoring & Logging
+sentry-sdk[flask]==1.29.2
+python-json-logger==2.0.7
+
+# Storage (for cloud deployments)
+boto3==1.28.30  # AWS S3
+google-cloud-storage==2.10.0  # Google Cloud Storage
+
+# Health checks
+flask-healthz==0.0.3
+
+# Environment management
+python-dotenv==1.0.0
+
+# Task queue (optional, for background processing)
+celery==5.3.1
+flower==2.0.1  # Celery monitoring
+
+# Caching
+Flask-Caching==2.0.2
+
+# CORS support (if needed for API)
+flask-cors==4.0.0

@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    ports:
+      - "${PORT:-5000}:5000"
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://ocruser:${DB_PASSWORD}@db:5432/ocrdb
+      - REDIS_URL=redis://redis:6379/0
+      - MAIL_SERVER=${MAIL_SERVER}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_DEFAULT_SENDER=${MAIL_DEFAULT_SENDER}
+      - SENTRY_DSN=${SENTRY_DSN}
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+      - GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+      - ocr_cache:/app/ocr_cache
+    restart: unless-stopped
+    networks:
+      - ocrnet
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=ocruser
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=ocrdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ocruser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ocrnet
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - ocrnet
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.production.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - uploads:/app/uploads:ro
+    depends_on:
+      - web
+    restart: unless-stopped
+    networks:
+      - ocrnet
+
+  # Optional: Background task worker
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    command: celery -A app_production.celery worker --loglevel=info
+    environment:
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://ocruser:${DB_PASSWORD}@db:5432/ocrdb
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - uploads:/app/uploads
+      - ocr_cache:/app/ocr_cache
+    restart: unless-stopped
+    networks:
+      - ocrnet
+    profiles:
+      - with-worker
+
+  # Optional: Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - ocrnet
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+    restart: unless-stopped
+    networks:
+      - ocrnet
+    profiles:
+      - monitoring
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads:
+  ocr_cache:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  ocrnet:
+    driver: bridge
