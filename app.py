@@ -60,12 +60,36 @@ import secrets
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(16))
 
 # Database configuration
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///instance/users.db')
-# Fix Railway PostgreSQL URL format
+# Railway provides these environment variables for PostgreSQL
+database_url = os.environ.get('DATABASE_URL')
+
+# If DATABASE_URL is not set, try Railway-specific variables
+if not database_url:
+    db_host = os.environ.get('PGHOST')
+    db_port = os.environ.get('PGPORT', '5432')
+    db_name = os.environ.get('PGDATABASE')
+    db_user = os.environ.get('PGUSER')
+    db_password = os.environ.get('PGPASSWORD')
+    
+    if all([db_host, db_name, db_user, db_password]):
+        database_url = f'postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}'
+        logger.info("Built database URL from Railway PostgreSQL environment variables")
+    else:
+        logger.warning("No database environment variables found, falling back to SQLite")
+        database_url = 'sqlite:///instance/users.db'
+else:
+    logger.info("Using DATABASE_URL environment variable")
+
+# Fix Railway PostgreSQL URL format if needed
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Log database configuration (without showing password)
+db_log_url = database_url.replace(database_url.split('@')[0].split(':')[-1], '***') if '@' in database_url else database_url
+logger.info(f"Database configured: {db_log_url}")
 
 # Mail configuration
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
