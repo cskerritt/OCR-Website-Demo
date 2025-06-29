@@ -940,8 +940,21 @@ def reset_token(token):
 
 # Initialize database
 def create_tables():
-    with app.app_context():
-        db.create_all()
+    try:
+        with app.app_context():
+            # Test database connection
+            with db.engine.connect() as connection:
+                connection.execute(db.text('SELECT 1'))
+            logger.info("Database connection successful")
+            
+            # Create tables
+            db.create_all()
+            logger.info("Database tables created successfully")
+            
+    except Exception as e:
+        logger.error(f"Database initialization failed: {str(e)}")
+        logger.error(f"Database URL: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}...")
+        raise
 
 # Call create_tables when the module is imported
 create_tables()
